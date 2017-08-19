@@ -3,9 +3,15 @@
 //      Fresno Ideaworks GardenSphere
 //      Monitor and Control 
 //
-//      v 0.1.2 15 Aug 2017
+//      v 0.1.4 19 Aug 2017
 //      jdozeran@gmail.com
-
+//
+//      Updated to include relays for grow lights, hydroponics recirculating pump,
+//      and water pump for drip irrigation.
+//      Also includes functions to read soil moisture from 2 probes and report it as
+//      the average of the two readings.
+//      Temperature (in farenheight and celsius), humidity, heat index and dew point
+//      are queryable from outside the unit.
 
 
 #include "Adafruit_DHT_Particle.h"
@@ -23,11 +29,15 @@ int loopCount;
 double h, t, f, hi, dp, k;
 int sm;
 
+int LightsRelay = D1;   // Pin to turn on and off grow lights
 int PumpRelay = D6;     // Pin to turn on and off water pump.
 int HydroRelay = D5;    // Pin to turn on and off nutrient solution pump.
-int MoistEnable = D3;   // Pin used to anable moisture sensor so it doesn't delaminate
-int MoistPin = A1;      // Pin connected to soil moisture sensor
-int MoistValue = 0;     // Initial moisture value for soil - reads 0 - 4095
+int MoistEnable1 = D3;   // Pin used to anable moisture sensor so it doesn't delaminate
+int MoistPin1 = A1;      // Pin connected to soil moisture sensor
+int MoistValue1 = 0;     // Initial moisture value for soil - reads 0 - 4095
+int MoistEnable2 = D4;   // Pin used to anable moisture sensor so it doesn't delaminate
+int MoistPin2 = A2;      // Pin connected to soil moisture sensor
+int MoistValue2 = 0;     // Initial moisture value for soil - reads 0 - 4095
 
 
 void setup() {
@@ -42,13 +52,18 @@ void setup() {
 	Serial.println("Fresno Ideaworks GardenSphere!");
 	Particle.publish("state", "GardenSphere start");
 	Particle.function("readsoil",readSoil);
+    Particle.function("lightsOnOff",lightsToggle);
     Particle.function("pumpOnOff",pumpToggle);
     Particle.function("hydroOnOff",nutrientToggle);
 	dht.begin();
-	pinMode(MoistEnable,OUTPUT);
-	digitalWrite(MoistEnable,0);
+	pinMode(MoistEnable1,OUTPUT);
+	digitalWrite(MoistEnable1,0);
+	pinMode(MoistEnable2,OUTPUT);
+	digitalWrite(MoistEnable2,0);
 	pinMode(PumpRelay,OUTPUT);
 	digitalWrite(PumpRelay,1);
+	pinMode(LightsRelay,OUTPUT);
+	digitalWrite(LightsRelay,1);
 	pinMode(HydroRelay,OUTPUT);
 	digitalWrite(HydroRelay,1);
 	loopCount = 0;
@@ -93,23 +108,48 @@ int readSoil(String command)
 {
   if(command.toUpperCase() == "INTERNAL")
   {
-    digitalWrite(MoistEnable,1);
+    digitalWrite(MoistEnable1,1);
     delay(1000);
-    MoistValue = analogRead(MoistPin);
-    digitalWrite(MoistEnable,0);
-    sm = MoistValue;
+    MoistValue1 = analogRead(MoistPin1);
+    digitalWrite(MoistEnable1,0);
+    digitalWrite(MoistEnable2,1);
+    delay(1000);
+    MoistValue2 = analogRead(MoistPin2);
+    digitalWrite(MoistEnable2,0);
+    sm = (MoistValue1+MoistValue2) / 2;
     Particle.publish("state", "Read soil moisture sensor");
     return sm;
   }
   else if (command.toUpperCase() == "")
   {
-    digitalWrite(MoistEnable,1);
+    digitalWrite(MoistEnable1,1);
     delay(1000);
-    MoistValue = analogRead(MoistPin);
-    digitalWrite(MoistEnable,0);
-    sm = MoistValue;
+    MoistValue1 = analogRead(MoistPin1);
+    digitalWrite(MoistEnable1,0);
+    digitalWrite(MoistEnable2,1);
+    delay(1000);
+    MoistValue2 = analogRead(MoistPin2);
+    digitalWrite(MoistEnable2,0);
+    sm = (MoistValue1+MoistValue2) / 2;
     Particle.publish("state", "Read soil moisture sensor");
     return sm;
+  }
+  else return -1;
+}
+
+int lightsToggle(String command)
+{
+  if(command.toUpperCase() == "ON")
+  {
+    digitalWrite(LightsRelay,0);
+    Particle.publish("state", "Grow lights turned on.");
+    return 1;
+  }
+  else if (command.toUpperCase() == "OFF")
+  {
+    digitalWrite(LightsRelay,1);
+    Particle.publish("state", "Grow lights turned off.");
+    return 1;
   }
   else return -1;
 }
